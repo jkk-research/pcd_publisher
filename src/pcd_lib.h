@@ -248,14 +248,14 @@ PCD_LIB bool pcd_write_header(rclcpp::Logger logger, const sensor_msgs::msg::Poi
 	return true;
 } 
 
-typedef struct Pcd_Ascii_Data_Buffer {
+typedef struct Pcd_Data_Buffer {
 	char *buffer;
 	size_t len;
-} Pcd_Ascii_Data_Buffer;
+} Pcd_Data_Buffer;
 
-#define PCD_DEFAULT_ASCII_DATA_BUFFER MB(64)
-PCD_LIB bool pcd_append_write_to_ascii_file(Pcd_Ascii_Data_Buffer *data_buffer, int fd, const char *rhs, size_t rhs_size) {
-	if (data_buffer->len + rhs_size > PCD_DEFAULT_ASCII_DATA_BUFFER) {
+#define PCD_DEFAULT_DATA_BUFFER MB(64)
+PCD_LIB bool pcd_append_write_to_file(Pcd_Data_Buffer *data_buffer, int fd, const char *rhs, size_t rhs_size) {
+	if (data_buffer->len + rhs_size > PCD_DEFAULT_DATA_BUFFER) {
 		if (write(fd, data_buffer->buffer, data_buffer->len) == -1) {
 			return false;
 		}
@@ -266,7 +266,7 @@ PCD_LIB bool pcd_append_write_to_ascii_file(Pcd_Ascii_Data_Buffer *data_buffer, 
 	return true;
 }
 
-PCD_LIB bool pcd_write_buffer_to_ascii_file(Pcd_Ascii_Data_Buffer *data_buffer, int fd) {
+PCD_LIB bool pcd_write_buffer_to_file(Pcd_Data_Buffer *data_buffer, int fd) {
 	if (data_buffer->len == 0)
 		return true;
 
@@ -274,11 +274,13 @@ PCD_LIB bool pcd_write_buffer_to_ascii_file(Pcd_Ascii_Data_Buffer *data_buffer, 
 }
 
 PCD_LIB bool pcd_save_to_ascii_file(rclcpp::Logger logger, const sensor_msgs::msg::PointCloud2::SharedPtr msg, char *filename) {
+    /*
 	auto header = msg->header;
 	auto timestamp = header.stamp;
 	RCLCPP_INFO(logger, "Frame id: %s", header.frame_id.c_str());
 	RCLCPP_INFO(logger, "Timestamp: sec %d; nanosec: %d", timestamp.sec, timestamp.nanosec);
 	RCLCPP_INFO(logger, "Width: %d Height: %d", msg->width, msg->height);
+    */
 
 	// Open the file descriptor
 	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -294,8 +296,8 @@ PCD_LIB bool pcd_save_to_ascii_file(rclcpp::Logger logger, const sensor_msgs::ms
 		return false;
 	}
 
-	Pcd_Ascii_Data_Buffer data_buffer;
-	data_buffer.buffer = (char *)PCD_LIB_ALLOC(PCD_DEFAULT_ASCII_DATA_BUFFER);
+	Pcd_Data_Buffer data_buffer;
+	data_buffer.buffer = (char *)PCD_LIB_ALLOC(PCD_DEFAULT_DATA_BUFFER);
 	data_buffer.len = 0;
 
 	if (data_buffer.buffer == NULL) {
@@ -344,32 +346,73 @@ PCD_LIB bool pcd_save_to_ascii_file(rclcpp::Logger logger, const sensor_msgs::ms
 				}
 
 				if (need_space) {
-					pcd_append_write_to_ascii_file(&data_buffer, fd, " ", 1);
+					pcd_append_write_to_file(&data_buffer, fd, " ", 1);
 				} else {
 					need_space = true;
 				}
 
-				pcd_append_write_to_ascii_file(&data_buffer, fd, number_buffer, n);
+				pcd_append_write_to_file(&data_buffer, fd, number_buffer, n);
 			} 
 		}
-		pcd_append_write_to_ascii_file(&data_buffer, fd, "\n", 1);
+		pcd_append_write_to_file(&data_buffer, fd, "\n", 1);
 	}
 
-	if (!pcd_write_buffer_to_ascii_file(&data_buffer, fd)) {
+	if (!pcd_write_buffer_to_file(&data_buffer, fd)) {
 		RCLCPP_ERROR(logger, "Failed to write to ascii PCD file");
 		close(fd);
 		return false;
 	}
 
-    RCLCPP_INFO(logger, "---------------%s------------", filename);
-    for (const auto &field: msg->fields) {
-        RCLCPP_INFO(logger, "Field name: %s", field.name.c_str());
-        RCLCPP_INFO(logger, "Field offset: %d", field.offset);
-        RCLCPP_INFO(logger, "Field datatype: %d", field.datatype);
-        RCLCPP_INFO(logger, "Field count: %d", field.count);
-    }
-    RCLCPP_INFO(logger, "----------------------------------");
+    // Close the file descriptor
+    close(fd);
+    return true;
+}
 
+PCD_LIB bool pcd_save_to_binary_file(rclcpp::Logger logger, const sensor_msgs::msg::PointCloud2::SharedPtr msg, char *filename) {
+    if (msg->is_bigendian) {
+        RCLCPP_INFO(logger, "Bigendian PCD files are not supported!");
+        return false;
+    }
+
+	// Open the file descriptor
+	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (fd == -1) {
+		RCLCPP_ERROR(logger, "Failed to open '%s' file for writing: %s", filename, strerror(errno));
+		return false;
+	}
+
+	// Write the header first
+	if (!pcd_write_header(logger, msg, fd, PCD_TYPE_BINARY)) {
+		RCLCPP_ERROR(logger, "Error writing to file '%s': %s", filename, strerror(errno));
+		close(fd);
+		return false;
+	}
+
+	Pcd_Data_Buffer data_buffer;
+	data_buffer.buffer = (char *)PCD_LIB_ALLOC(PCD_DEFAULT_DATA_BUFFER);
+	data_buffer.len = 0;
+
+	if (data_buffer.buffer == NULL) {
+		RCLCPP_ERROR(logger, "Failed to allocate memory for data_buffer");
+		close(fd);
+		return false;
+	}
+
+	uint64_t num_of_points = (uint64_t)msg->width * (uint64_t)msg->height;
+	for (uint64_t point_idx = 0; point_idx < num_of_points; ++point_idx) {
+		uint64_t point_offset = (uint64_t)msg->point_step * point_idx;
+		for (const auto &field: msg->fields) {
+			uint8_t *data_ptr = msg->data.data() + point_offset + field.offset;
+			size_t elem_size = pcd_get_size_from_datatype(field.datatype);
+            pcd_append_write_to_file(&data_buffer, fd, (char *)data_ptr, field.count * elem_size);
+		}
+	}
+
+	if (!pcd_write_buffer_to_file(&data_buffer, fd)) {
+		RCLCPP_ERROR(logger, "Failed to write to binary PCD file");
+		close(fd);
+		return false;
+	}
 
     // Close the file descriptor
     close(fd);

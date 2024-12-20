@@ -45,7 +45,8 @@ private:
     void callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
     {
         if (this->dummy) {
-            pcd_save_to_ascii_file(this->get_logger(), msg, "output.pcd");
+            //pcd_save_to_ascii_file(this->get_logger(), msg, "output.pcd");
+            pcd_save_to_binary_file(this->get_logger(), msg, "output.pcd");
             this->dummy = false;
         }
         return;
