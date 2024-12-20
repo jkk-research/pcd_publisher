@@ -15,6 +15,7 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <string>
 
+#include "pcd_lib.h"
 
 using std::string;
 
@@ -33,11 +34,22 @@ public: PCDSubscriber() : Node("pcd_subsriber"){
     this->get_parameter("frame_id", frame_id_);
     this->get_parameter("continuous_saving", continuous_saving_);
     this->get_parameter("continuous_saving_rate", continuous_saving_rate_);
-    subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>("pointcloud", 10, std::bind(&PCDSubscriber::callback, this, std::placeholders::_1));
+
+
+    RCLCPP_INFO(this->get_logger(), "Topic name: %s", topic_name_.c_str());
+    this->dummy = true;
+
+    subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(topic_name_, 10, std::bind(&PCDSubscriber::callback, this, std::placeholders::_1));
 }
 private:
     void callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
     {
+        if (this->dummy) {
+            pcd_save_to_ascii_file(this->get_logger(), msg, "output.pcd");
+            this->dummy = false;
+        }
+        return;
+
         RCLCPP_INFO_STREAM(this->get_logger(), "Received pointcloud message with " << msg->width * msg->height << " points, topic: " << topic_name_);
         pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>);
         pcl::fromROSMsg(*msg, *cloud);
@@ -76,6 +88,7 @@ private:
     string topic_name_;
     string frame_id_;
     bool continuous_saving_;
+    bool dummy;
     double continuous_saving_rate_;
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
