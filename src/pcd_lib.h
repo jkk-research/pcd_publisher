@@ -158,13 +158,11 @@ PCD_LIB size_t pcd_int32_to_string(int32_t value, char *buffer) {
 
 // NOTE: you can optimize this by writing your own conversion function
 PCD_LIB size_t pcd_float32_to_string(float value, char *buffer) {
-	snprintf(buffer, 64, "%e", value);
-	return strlen(buffer);
+	return (size_t)snprintf(buffer, 64, "%e", value);
 }
 
 PCD_LIB size_t pcd_float64_to_string(double value, char *buffer) {
-	snprintf(buffer, 64, "%e", value);
-	return strlen(buffer);
+	return (size_t)snprintf(buffer, 64, "%e", value);
 }
 
 #define HEADER_MAX_SIZE KB(8)
