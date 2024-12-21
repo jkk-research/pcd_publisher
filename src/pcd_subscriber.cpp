@@ -11,6 +11,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <Eigen/Geometry>
 #include <pcl/common/transforms.h>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <string>
@@ -21,7 +22,7 @@ using std::string;
 
 class PCDSubscriber : public rclcpp::Node
 {
-public: PCDSubscriber() : Node("pcd_subsriber"){
+public: PCDSubscriber() : Node("pcd_subsriber") {
     // TODO: save the pointcloud with a frame_id to another frame_id with transformation callback lookupTransform
     this->declare_parameter<std::string>("pcd_file_path", pcd_file_path_);
     this->declare_parameter<std::string>("topic_name", "pointcloud");
@@ -35,53 +36,78 @@ public: PCDSubscriber() : Node("pcd_subsriber"){
     this->get_parameter("continuous_saving", continuous_saving_);
     this->get_parameter("continuous_saving_rate", continuous_saving_rate_);
 
+    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
+
 
     RCLCPP_INFO(this->get_logger(), "Topic name: %s", topic_name_.c_str());
     this->dummy = true;
 
+    //tf_buffer_.setUsingDedicatedThread(true);
     subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(topic_name_, 10, std::bind(&PCDSubscriber::callback, this, std::placeholders::_1));
 }
 private:
     void callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
     {
+#if 0
         if (this->dummy) {
             //pcd_save_to_ascii_file(this->get_logger(), msg, "output.pcd");
             pcd_save_to_binary_file(this->get_logger(), msg, "output.pcd");
             this->dummy = false;
         }
         return;
+#endif
 
         RCLCPP_INFO_STREAM(this->get_logger(), "Received pointcloud message with " << msg->width * msg->height << " points, topic: " << topic_name_);
-        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>);
-        pcl::fromROSMsg(*msg, *cloud);
-        string pointcloud_frame_id_ = msg->header.frame_id;
-        geometry_msgs::msg::TransformStamped transformStamped, transformInverse;
-        tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
-        tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
-        if(frame_id_ != "none"){
-            try
-            {
-                transformStamped = tf_buffer_->lookupTransform(pointcloud_frame_id_, frame_id_, tf2::TimePointZero);
-                transformInverse = tf_buffer_->lookupTransform(frame_id_, pointcloud_frame_id_, tf2::TimePointZero);
-            }
 
-            catch (const tf2::TransformException &ex)
-            {
-                RCLCPP_WARN(this->get_logger(), "Could not get transform: %s", ex.what());
-                // return;
+        string source_frame_id = msg->header.frame_id;
+        string target_frame_id = "map";
+
+        sensor_msgs::msg::PointCloud2 transformed_cloud;
+        sensor_msgs::msg::PointCloud2::SharedPtr transformed_cloud_ptr;
+
+        RCLCPP_INFO(this->get_logger(), "source (%s) target (%s)", source_frame_id.c_str(), target_frame_id.c_str());
+
+        if (source_frame_id != "none") {
+            try {
+                if (tf_buffer_->canTransform(target_frame_id, source_frame_id, tf2::TimePointZero, tf2::durationFromSec(1.0))) {
+                    geometry_msgs::msg::TransformStamped transform_stamped = tf_buffer_->lookupTransform(
+                        target_frame_id,
+                        source_frame_id,
+                        tf2::TimePointZero
+                    );
+
+                    RCLCPP_INFO(this->get_logger(), "transformation (x=%f, y=%f, z=%f)",
+                        transform_stamped.transform.translation.x,
+                        transform_stamped.transform.translation.y,
+                        transform_stamped.transform.translation.z
+                    );
+
+                    tf2::doTransform(*msg, transformed_cloud, transform_stamped);
+                    transformed_cloud.header.frame_id = target_frame_id;
+                    transformed_cloud_ptr = std::make_shared<sensor_msgs::msg::PointCloud2>(transformed_cloud);
+                } else {
+                    RCLCPP_WARN(this->get_logger(), "Transform from %s to %s is not available yet", source_frame_id.c_str(), target_frame_id.c_str());
+                }
+
+
+            } catch (const tf2::TransformException &ex) {
+                RCLCPP_WARN(this->get_logger(), "Failed to transform PointCloud2: %s", ex.what());
             }
-            // TODO: transform the pointcloud to save
+        } else {
+            transformed_cloud_ptr = msg;
         }
-        if (pcl::io::savePCDFileASCII(pcd_file_path_, *cloud) == 0)
-        {
-            RCLCPP_INFO(this->get_logger(), "Saved %d data points to %s", cloud->width * cloud->height, pcd_file_path_.c_str());
+
+        // Save the transformed PointCloud
+#if 0
+        if (!pcd_save_to_binary_file(this->get_logger(), transformed_cloud_ptr, "output.pcd")) {
             // shutdown node
             rclcpp::shutdown();
         }
-        else
-        {
-            RCLCPP_ERROR(this->get_logger(), "Failed to save data points to %s", pcd_file_path_.c_str());
-        }
+#endif
+        return;
+
     }
 
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
