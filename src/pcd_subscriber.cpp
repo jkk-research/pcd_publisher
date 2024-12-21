@@ -12,6 +12,7 @@
 #include <Eigen/Geometry>
 #include <pcl/common/transforms.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
+#include <mutex>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <string>
@@ -27,7 +28,6 @@ public: PCDSubscriber() : Node("pcd_subsriber") {
     this->declare_parameter<std::string>("pcd_file_path", pcd_file_path_);
     this->declare_parameter<std::string>("topic_name", "pointcloud");
     this->declare_parameter<std::string>("frame_id", "none");
-    // TODO: add a parameter for continous saving
     this->declare_parameter<bool>("continuous_saving", false);
     this->declare_parameter<double>("continuous_saving_rate", 1.0);
     this->get_parameter("pcd_file_path", pcd_file_path_);
@@ -36,7 +36,7 @@ public: PCDSubscriber() : Node("pcd_subsriber") {
     this->get_parameter("continuous_saving", continuous_saving_);
     this->get_parameter("continuous_saving_rate", continuous_saving_rate_);
 
-    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock(), tf2::durationFromSec(20.0));
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
 
@@ -46,10 +46,25 @@ public: PCDSubscriber() : Node("pcd_subsriber") {
 
     //tf_buffer_.setUsingDedicatedThread(true);
     subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(topic_name_, 10, std::bind(&PCDSubscriber::callback, this, std::placeholders::_1));
+
+#if 0
+    timer_ = this->create_wall_timer(
+        std::chrono::duration<double>(1.0 / continuous_saving_rate_),
+        std::bind(&PCDSubscriber::savePointCloud, this)
+    );
+#endif
 }
 private:
     void callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
     {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_callback_time_).count() / 1000.0;
+
+        if (elapsed_time < continuous_saving_rate_) {
+            return;
+        }
+
+        last_callback_time_ = now;
 #if 0
         if (this->dummy) {
             //pcd_save_to_ascii_file(this->get_logger(), msg, "output.pcd");
@@ -75,7 +90,7 @@ private:
                     geometry_msgs::msg::TransformStamped transform_stamped = tf_buffer_->lookupTransform(
                         target_frame_id,
                         source_frame_id,
-                        tf2::TimePointZero
+                        msg->header.stamp
                     );
 
                     RCLCPP_INFO(this->get_logger(), "transformation (x=%f, y=%f, z=%f)",
@@ -100,25 +115,32 @@ private:
         }
 
         // Save the transformed PointCloud
-#if 0
-        if (!pcd_save_to_binary_file(this->get_logger(), transformed_cloud_ptr, "output.pcd")) {
+        if (!pcd_save_to_binary_file(this->get_logger(), msg, "output.pcd")) {
             // shutdown node
             rclcpp::shutdown();
+            return;
         }
-#endif
         return;
 
     }
+
+#if 0
+    void savePointCloud() {
+        RCLCPP_INFO(this->get_logger(), "Timer meghívva!");
+    }
+#endif
 
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
     string pcd_file_path_;
     string topic_name_;
     string frame_id_;
-    bool continuous_saving_;
     bool dummy;
+    bool continuous_saving_;
     double continuous_saving_rate_;
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
+    rclcpp::TimerBase::SharedPtr timer_;
+    std::chrono::steady_clock::time_point last_callback_time_;
 };
 int main(int argc, char* argv[])
 {
