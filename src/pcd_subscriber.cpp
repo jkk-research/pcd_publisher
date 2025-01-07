@@ -30,11 +30,13 @@ public: PCDSubscriber() : Node("pcd_subsriber") {
     this->declare_parameter<std::string>("frame_id", "none");
     this->declare_parameter<bool>("continuous_saving", true);
     this->declare_parameter<double>("continuous_saving_rate", 1.0);
+    this->declare_parameter<int>("pointcloud_buffer_size", 128); // buffer size in MB
     this->get_parameter("pcd_file_path", pcd_file_path_);
     this->get_parameter("topic_name", topic_name_);
     this->get_parameter("frame_id", frame_id_);
     this->get_parameter("continuous_saving", continuous_saving_);
     this->get_parameter("continuous_saving_rate", continuous_saving_rate_);
+    this->get_parameter("pointcloud_buffer_size", pointcloud_buffer_size_);
 
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock(), tf2::durationFromSec(20.0));
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -152,6 +154,7 @@ private:
     bool dummy;
     bool continuous_saving_;
     double continuous_saving_rate_;
+    int pointcloud_buffer_size_;
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
     rclcpp::TimerBase::SharedPtr timer_;
