@@ -28,7 +28,7 @@ public: PCDSubscriber() : Node("pcd_subsriber") {
     this->declare_parameter<std::string>("pcd_file_path", pcd_file_path_);
     this->declare_parameter<std::string>("topic_name", "pointcloud");
     this->declare_parameter<std::string>("frame_id", "none");
-    this->declare_parameter<bool>("continuous_saving", false);
+    this->declare_parameter<bool>("continuous_saving", true);
     this->declare_parameter<double>("continuous_saving_rate", 1.0);
     this->get_parameter("pcd_file_path", pcd_file_path_);
     this->get_parameter("topic_name", topic_name_);
@@ -102,8 +102,10 @@ private:
                     tf2::doTransform(*msg, transformed_cloud, transform_stamped);
                     transformed_cloud.header.frame_id = target_frame_id;
                     transformed_cloud_ptr = std::make_shared<sensor_msgs::msg::PointCloud2>(transformed_cloud);
+                    //transformed_cloud_ptr.reset(&transformed_cloud);
                 } else {
                     RCLCPP_WARN(this->get_logger(), "Transform from %s to %s is not available yet", source_frame_id.c_str(), target_frame_id.c_str());
+                    transformed_cloud_ptr = msg;
                 }
 
 
@@ -114,9 +116,22 @@ private:
             transformed_cloud_ptr = msg;
         }
 
-        // Save the transformed PointCloud
-        if (!pcd_save_to_binary_file(this->get_logger(), msg, "output.pcd")) {
-            // shutdown node
+        if (transformed_cloud_ptr)
+            RCLCPP_INFO(this->get_logger(), "Pointer helye: %d", transformed_cloud_ptr->height);
+        else
+            RCLCPP_INFO(this->get_logger(), "Nincs inicializálva öcsi!");
+
+        // Save only if the transformation exists
+        if (transformed_cloud_ptr) {
+            if (!pcd_save_to_binary_file(this->get_logger(), transformed_cloud_ptr, "output.pcd")) {
+                // shutdown node
+                rclcpp::shutdown();
+                return;
+            }
+        }
+
+
+        if (!continuous_saving_) {
             rclcpp::shutdown();
             return;
         }
