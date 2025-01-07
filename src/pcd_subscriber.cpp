@@ -53,7 +53,13 @@ public: PCDSubscriber() : Node("pcd_subsriber") {
         std::bind(&PCDSubscriber::savePointCloud, this)
     );
 #endif
+
 }
+
+    ~PCDSubscriber() {
+        RCLCPP_INFO(this->get_logger(), "Saving the remaining data...");
+    }
+
 private:
     void callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
     {
@@ -138,12 +144,6 @@ private:
         return;
 
     }
-
-#if 0
-    void savePointCloud() {
-        RCLCPP_INFO(this->get_logger(), "Timer meghívva!");
-    }
-#endif
 
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
     string pcd_file_path_;
