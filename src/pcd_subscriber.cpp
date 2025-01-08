@@ -204,7 +204,7 @@ private:
 
         // Save only if the transformation exists
         if (transformed_cloud_ptr) {
-            appendPointCloud(msg);
+            appendPointCloud(transformed_cloud_ptr);
             if (!pcd_save_to_binary_file(this->get_logger(), transformed_cloud_ptr, "output.pcd")) {
                 // shutdown node
                 rclcpp::shutdown();
