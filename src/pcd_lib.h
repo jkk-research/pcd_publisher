@@ -272,14 +272,6 @@ PCD_LIB bool pcd_write_buffer_to_file(Pcd_Data_Buffer *data_buffer, int fd) {
 }
 
 PCD_LIB bool pcd_save_to_ascii_file(rclcpp::Logger logger, const sensor_msgs::msg::PointCloud2::SharedPtr msg, char *filename) {
-    /*
-	auto header = msg->header;
-	auto timestamp = header.stamp;
-	RCLCPP_INFO(logger, "Frame id: %s", header.frame_id.c_str());
-	RCLCPP_INFO(logger, "Timestamp: sec %d; nanosec: %d", timestamp.sec, timestamp.nanosec);
-	RCLCPP_INFO(logger, "Width: %d Height: %d", msg->width, msg->height);
-    */
-
 	// Open the file descriptor
 	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd == -1) {
