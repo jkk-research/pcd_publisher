@@ -1,7 +1,7 @@
 /pcd_subsriber:
   ros__parameters:
     continuous_saving: true
-    continuous_saving_rate: 0.5
+    continuous_saving_rate: 0.5 # in sec
     pointcloud_buffer_size: 128 # in MB
     frame_id: 'map_gyor_0'
     pcd_file_path: '/mnt/bag/test'

@@ -46,6 +46,11 @@ Run the publisher node:
 ros2 run pcd_publisher pcd_publisher --ros-args -p pcd_file_path:=/path/to/pcd
 ```
 
+```bash
+ros2 run pcd_publisher pcd_publisher --ros-args -p pcd_file_path:=/mnt/c/bag/pcd_test/campus1.pcd -p topic_name:=/points_campus
+```
+
+
 The node will publish the point cloud data on the `/pointcloud` topic.
 
 ### `ROS 2` `PointCloud2` subscriber (writes a `PCD` file)
@@ -54,6 +59,10 @@ Run the subscriber:
 
 ```bash
 ros2 run pcd_publisher pcd_subscriber --ros-args -p pcd_file_path:=/path/to/pcd -p topic:=/pointcloud
+```
+
+```bash
+ros2 run pcd_publisher pcd_subscriber --ros-args -p pcd_file_path:=/mnt/c/bag/pcd_test/ -p topic_name:=/lexus3/os_center/points -p frame_id:=map_gyor_0 -p continuous_saving:=true -p continuous_saving_rate:=0.5
 ```
 
 The subscriber will listen to the `/pointcloud` topic and save the received point cloud data to a PCD file.
