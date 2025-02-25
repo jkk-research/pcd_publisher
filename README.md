@@ -62,6 +62,10 @@ ros2 run pcd_publisher pcd_subscriber --ros-args -p pcd_file_path:=/path/to/pcd 
 ```
 
 ```bash
+ros2 run pcd_publisher pcd_subscriber --ros-args --params-file params01.yaml
+```
+
+```bash
 ros2 run pcd_publisher pcd_subscriber --ros-args -p pcd_file_path:=/mnt/c/bag/pcd_test/ -p topic_name:=/lexus3/os_center/points -p frame_id:=map_gyor_0 -p continuous_saving:=true -p continuous_saving_rate:=0.5
 ```
 

@@ -1,17 +1,17 @@
 /pcd_subsriber:
   ros__parameters:
-    continuous_saving: true
+    continuous_saving: false
     continuous_saving_rate: 0.5 # in sec
     pointcloud_buffer_size: 128 # in MB
-    frame_id: 'map_gyor_0'
-    pcd_file_path: '/mnt/bag/test'
+    frame_id: 'map_zala_0'
+    pcd_file_path: '/mnt/bag/pcd_zala_smart_city/06' ## it will add .pcd
     qos_overrides:
       /parameter_events:
         publisher:
           depth: 1000
           durability: volatile
           history: keep_last
-          reliability: reliable
-    topic_name: '/lexus3/sensing/lidar/concatenated/pointcloud'
+          reliability: best_effort 
+    topic_name: '/lexus3/os_center/points'
     use_sim_time: false
 
