@@ -50,6 +50,9 @@ ros2 run pcd_publisher pcd_publisher --ros-args -p pcd_file_path:=/path/to/pcd
 ros2 run pcd_publisher pcd_publisher --ros-args -p pcd_file_path:=/mnt/c/bag/pcd_test/campus1.pcd -p topic_name:=/points_campus
 ```
 
+```bash
+ros2 run pcd_publisher pcd_publisher --ros-args -p pcd_file_path:=/home/dev/autoware_map/gyor_campus/pointcloud_map.pcd -p topic_name:=/points_campus -p frame_id:=map_gyor_0
+```
 
 The node will publish the point cloud data on the `/pointcloud` topic.
 
@@ -92,3 +95,7 @@ If you are not sure where your header files are use e.g.:
 find /usr/include -name point_cloud.h
 find /usr/include -name crop_box.h
 ```
+
+## Related
+
+- [github.com/jkk-research/lanelet2_rviz2](https://github.com/jkk-research/lanelet2_rviz2): `lanelet2_rviz2` ROS 2 package
