@@ -99,3 +99,7 @@ find /usr/include -name crop_box.h
 ## Related
 
 - [github.com/jkk-research/lanelet2_rviz2](https://github.com/jkk-research/lanelet2_rviz2): `lanelet2_rviz2` ROS 2 package
+
+You can use `lanelet2_rviz2` and `pcd_publisher` together to create similar view:
+
+![](https://raw.githubusercontent.com/jkk-research/lanelet2_rviz2/refs/heads/lanelet2_lib_based/etc/lanelet_visu01.png)
