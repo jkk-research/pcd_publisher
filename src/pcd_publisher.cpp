@@ -55,6 +55,10 @@ class PCDPublisher : public rclcpp::Node
             {
                 z_rotation_ = param.as_double();
             }
+            else if (param.get_name() == "field_to_publish") // New parameter
+            {
+                field_to_publish_ = param.as_string();
+            }
             else
             {
                 result.successful = false;
@@ -78,6 +82,7 @@ public:
         this->declare_parameter<double>("x_rotation", x_rotation_);
         this->declare_parameter<double>("y_rotation", y_rotation_);
         this->declare_parameter<double>("z_rotation", z_rotation_);
+        this->declare_parameter<std::string>("field_to_publish", "intensity"); // New parameter
         this->get_parameter("pcd_file_path", pcd_file_path_);
         this->get_parameter("frame_id", frame_id_);
         this->get_parameter("topic_name", topic_name_);
@@ -87,6 +92,7 @@ public:
         this->get_parameter("x_rotation", x_rotation_);
         this->get_parameter("y_rotation", y_rotation_);
         this->get_parameter("z_rotation", z_rotation_);
+        this->get_parameter("field_to_publish", field_to_publish_); // Get the new parameter
         publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(topic_name_, 10); 
             callback_handle_ = this->add_on_set_parameters_callback(std::bind(&PCDPublisher::parametersCallback, this, std::placeholders::_1));
         timer_ = this->create_wall_timer(
@@ -99,9 +105,10 @@ public:
         RCLCPP_INFO_STREAM(this->get_logger(), "Translation:    " << x_translation_ << ", " << y_translation_ << ", " << z_translation_);
         RCLCPP_INFO_STREAM(this->get_logger(), "Rotation (rad): " << x_rotation_ << ", " << y_rotation_ << ", " << z_rotation_);
         RCLCPP_INFO_STREAM(this->get_logger(), "Rotation (deg): " << x_rotation_ * 180.0 / M_PI << ", " << y_rotation_ * 180.0 / M_PI << ", " << z_rotation_ * 180.0 / M_PI);
+        RCLCPP_INFO_STREAM(this->get_logger(), "Field to publish: " << field_to_publish_); // Log the new parameter
 
         // Load PCD file
-        if (pcl::io::loadPCDFile<pcl::PointXYZI>(pcd_file_path_, *cloud_) == -1)
+        if (pcl::io::loadPCDFile<pcl::PointXYZRGB>(pcd_file_path_, *cloud_) == -1)
         {
             RCLCPP_ERROR(this->get_logger(), "Failed to load PCD file: %s", pcd_file_path_.c_str());
             rclcpp::shutdown();
@@ -118,6 +125,21 @@ private:
         transform.rotate(Eigen::AngleAxisf(y_rotation_, Eigen::Vector3f::UnitY()));
         transform.rotate(Eigen::AngleAxisf(z_rotation_, Eigen::Vector3f::UnitZ()));
         pcl::transformPointCloud(*cloud_, *cloud_transformed_, transform);
+
+        // Ensure the PointCloud2 message contains the selected field (rgb or intensity)
+        bool has_field = false;
+        for (const auto& point : cloud_transformed_->points) {
+            if (field_to_publish_ == "rgb" || field_to_publish_ == "intensity") {
+                has_field = true;
+                break;
+            }
+        }
+
+        if (!has_field) {
+            RCLCPP_WARN(this->get_logger(), "PointCloud2 message does not contain the '%s' field. Data not published!", field_to_publish_.c_str());
+            return;
+        }
+
         // Create ROS 2 PointCloud2 message
         sensor_msgs::msg::PointCloud2 output;
         pcl::toROSMsg(*cloud_transformed_, output);
@@ -130,11 +152,11 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr callback_handle_;
-    string pcd_file_path_, frame_id_, topic_name_;
+    string pcd_file_path_, frame_id_, topic_name_, field_to_publish_; // New member variable
     double x_translation_{0.0}, y_translation_{0.0}, z_translation_{0.0};
     double x_rotation_{0.0}, y_rotation_{0.0}, z_rotation_{0.0};
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_{new pcl::PointCloud<pcl::PointXYZI>};
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_transformed_{new pcl::PointCloud<pcl::PointXYZI>};
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_{new pcl::PointCloud<pcl::PointXYZRGB>};
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_transformed_{new pcl::PointCloud<pcl::PointXYZRGB>};
 };
 
 int main(int argc, char* argv[])
