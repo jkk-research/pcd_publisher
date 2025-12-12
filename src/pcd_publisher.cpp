@@ -59,10 +59,6 @@ class PCDPublisher : public rclcpp::Node
             {
                 z_rotation_ = param.as_double();
             }
-            else if (param.get_name() == "field_to_publish") // New parameter
-            {
-                field_to_publish_ = param.as_string();
-            }
             else
             {
                 result.successful = false;
@@ -87,7 +83,6 @@ public:
         this->declare_parameter<double>("x_rotation", x_rotation_);
         this->declare_parameter<double>("y_rotation", y_rotation_);
         this->declare_parameter<double>("z_rotation", z_rotation_);
-        this->declare_parameter<std::string>("field_to_publish", "intensity"); // New parameter
         this->get_parameter("pcd_file_path", pcd_file_path_);
         this->get_parameter("frame_id", frame_id_);
         this->get_parameter("topic_name", topic_name_);
@@ -98,7 +93,6 @@ public:
         this->get_parameter("x_rotation", x_rotation_);
         this->get_parameter("y_rotation", y_rotation_);
         this->get_parameter("z_rotation", z_rotation_);
-        this->get_parameter("field_to_publish", field_to_publish_); // Get the new parameter
         publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(topic_name_, 10); 
             callback_handle_ = this->add_on_set_parameters_callback(std::bind(&PCDPublisher::parametersCallback, this, std::placeholders::_1));
         timer_ = this->create_wall_timer(
@@ -111,7 +105,6 @@ public:
         RCLCPP_INFO_STREAM(this->get_logger(), "Translation:    " << x_translation_ << ", " << y_translation_ << ", " << z_translation_);
         RCLCPP_INFO_STREAM(this->get_logger(), "Rotation (rad): " << x_rotation_ << ", " << y_rotation_ << ", " << z_rotation_);
         RCLCPP_INFO_STREAM(this->get_logger(), "Rotation (deg): " << x_rotation_ * 180.0 / M_PI << ", " << y_rotation_ * 180.0 / M_PI << ", " << z_rotation_ * 180.0 / M_PI);
-        RCLCPP_INFO_STREAM(this->get_logger(), "Field to publish: " << field_to_publish_); // Log the new parameter
 
         // Load PCD file
         if (!intensity_only_)
