@@ -56,9 +56,12 @@ public:
 
         RCLCPP_INFO(this->get_logger(), "Topic name: %s", topic_name_.c_str());
 
-        //tf_buffer_.setUsingDedicatedThread(true);
-        subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(topic_name_, 10, std::bind(&PCDSubscriber::callback, this, std::placeholders::_1));
-    }
+    //tf_buffer_.setUsingDedicatedThread(true);
+    auto qos = rclcpp::QoS(rclcpp::KeepLast(10));
+    qos.reliability(rclcpp::ReliabilityPolicy::BestEffort);
+    qos.durability(rclcpp::DurabilityPolicy::Volatile);
+    subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(topic_name_, qos, std::bind(&PCDSubscriber::callback, this, std::placeholders::_1));
+}
 
     ~PCDSubscriber() {
         if (!continuous_saving_) return;

@@ -56,6 +56,20 @@ ros2 run pcd_publisher pcd_publisher --ros-args -p pcd_file_path:=/home/dev/auto
 
 The node will publish the point cloud data on the `/pointcloud` topic.
 
+#### Intensity-only mode
+
+If your PCD file contains intensity values (e.g., `pcl::PointXYZI`) and you want to publish only intensity (no RGB), enable the `intensity_only` parameter:
+
+```bash
+ros2 run pcd_publisher pcd_publisher --ros-args \
+   -p pcd_file_path:=/path/to/pointcloud_i.pcd \
+   -p intensity_only:=true
+```
+
+- `intensity_only` (bool, default `false`):
+   - `false` → loads and publishes `pcl::PointXYZRGB` data (RGB point clouds)
+   - `true`  → loads and publishes `pcl::PointXYZI` data (intensity-only point clouds)
+
 ### `ROS 2` `PointCloud2` subscriber (writes a `PCD` file)
 
 Run the subscriber:
