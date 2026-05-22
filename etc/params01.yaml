@@ -4,7 +4,7 @@
     continuous_saving_rate: 2.0 # in sec
     pointcloud_buffer_size: 128 # in MB
     frame_id: 'map'
-    pcd_file_path: '/home/aut/pcl_luminar/cont_2/test' ## it will add .pcd
+    pcd_file_path: '~/pcl_luminar/cont_2/test2' ## it will add .pcd
     field_to_save: 'rgb'
     qos_overrides:
       /parameter_events:

@@ -19,10 +19,14 @@
 #include <builtin_interfaces/msg/time.hpp>
 #include <stdlib.h>
 #include <fcntl.h> // for open, close, write syscalls
+#include <pwd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdint.h>
 #include <errno.h>
+#include <string>
 
 #define PCD_LIB_ALLOC(x) malloc(x)
 #define PCD_LIB_FREE(x)  free(x)
@@ -251,6 +255,87 @@ typedef struct Pcd_Data_Buffer {
 	size_t len;
 } Pcd_Data_Buffer;
 
+PCD_LIB std::string pcd_get_home_directory() {
+	const char *home_dir = getenv("HOME");
+	if (home_dir != NULL && home_dir[0] != '\0') {
+		return std::string(home_dir);
+	}
+
+	struct passwd *pwd = getpwuid(getuid());
+	if (pwd != NULL && pwd->pw_dir != NULL) {
+		return std::string(pwd->pw_dir);
+	}
+
+	return std::string();
+}
+
+PCD_LIB std::string pcd_expand_user_path(const char *filename) {
+	if (filename == NULL) {
+		return std::string();
+	}
+
+	std::string path(filename);
+	if (path.empty() || path[0] != '~') {
+		return path;
+	}
+
+	if (path.size() > 1 && path[1] != '/') {
+		return path;
+	}
+
+	std::string home_dir = pcd_get_home_directory();
+	if (home_dir.empty()) {
+		return path;
+	}
+
+	if (path.size() == 1) {
+		return home_dir;
+	}
+
+	return home_dir + path.substr(1);
+}
+
+PCD_LIB bool pcd_ensure_parent_directory(rclcpp::Logger logger, const char *filename) {
+	std::string path(filename);
+	std::size_t last_slash = path.find_last_of('/');
+	if (last_slash == std::string::npos || last_slash == 0) {
+		return true;
+	}
+
+	std::string parent_path = path.substr(0, last_slash);
+	std::string current_path = (parent_path[0] == '/') ? "/" : "";
+	std::size_t index = (parent_path[0] == '/') ? 1 : 0;
+
+	while (index <= parent_path.size()) {
+		std::size_t next_slash = parent_path.find('/', index);
+		std::string segment = parent_path.substr(index, next_slash - index);
+		if (!segment.empty()) {
+			if (!current_path.empty() && current_path.back() != '/') {
+				current_path += "/";
+			}
+			current_path += segment;
+
+			struct stat info;
+			if (stat(current_path.c_str(), &info) == -1) {
+				if (errno != ENOENT || mkdir(current_path.c_str(), 0755) == -1) {
+					RCLCPP_ERROR(logger, "Failed to create directory '%s': %s", current_path.c_str(), strerror(errno));
+					return false;
+				}
+			} else if (!S_ISDIR(info.st_mode)) {
+				RCLCPP_ERROR(logger, "Path '%s' exists but is not a directory", current_path.c_str());
+				return false;
+			}
+		}
+
+		if (next_slash == std::string::npos) {
+			break;
+		}
+		index = next_slash + 1;
+	}
+
+	return true;
+}
+
 #define PCD_DEFAULT_DATA_BUFFER MB(64)
 PCD_LIB bool pcd_append_write_to_file(Pcd_Data_Buffer *data_buffer, int fd, const char *rhs, size_t rhs_size) {
 	if (data_buffer->len + rhs_size > PCD_DEFAULT_DATA_BUFFER) {
@@ -272,16 +357,21 @@ PCD_LIB bool pcd_write_buffer_to_file(Pcd_Data_Buffer *data_buffer, int fd) {
 }
 
 PCD_LIB bool pcd_save_to_ascii_file(rclcpp::Logger logger, const sensor_msgs::msg::PointCloud2::SharedPtr msg, char *filename) {
+	std::string resolved_filename = pcd_expand_user_path(filename);
+	if (!pcd_ensure_parent_directory(logger, resolved_filename.c_str())) {
+		return false;
+	}
+
 	// Open the file descriptor
-	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	int fd = open(resolved_filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd == -1) {
-		RCLCPP_ERROR(logger, "Failed to open '%s' file for writing: %s", filename, strerror(errno));
+		RCLCPP_ERROR(logger, "Failed to open '%s' file for writing: %s", resolved_filename.c_str(), strerror(errno));
 		return false;
 	}
 
 	// Write the header first
 	if (!pcd_write_header(logger, msg, fd, PCD_TYPE_ASCII)) {
-		RCLCPP_ERROR(logger, "Error writing to file '%s': %s", filename, strerror(errno));
+		RCLCPP_ERROR(logger, "Error writing to file '%s': %s", resolved_filename.c_str(), strerror(errno));
 		close(fd);
 		return false;
 	}
@@ -364,16 +454,21 @@ PCD_LIB bool pcd_save_to_binary_file(rclcpp::Logger logger, const sensor_msgs::m
         return false;
     }
 
+	std::string resolved_filename = pcd_expand_user_path(filename);
+	if (!pcd_ensure_parent_directory(logger, resolved_filename.c_str())) {
+		return false;
+	}
+
 	// Open the file descriptor
-	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	int fd = open(resolved_filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd == -1) {
-		RCLCPP_ERROR(logger, "Failed to open '%s' file for writing: %s", filename, strerror(errno));
+		RCLCPP_ERROR(logger, "Failed to open '%s' file for writing: %s", resolved_filename.c_str(), strerror(errno));
 		return false;
 	}
 
 	// Write the header first
 	if (!pcd_write_header(logger, msg, fd, PCD_TYPE_BINARY)) {
-		RCLCPP_ERROR(logger, "Error writing to file '%s': %s", filename, strerror(errno));
+		RCLCPP_ERROR(logger, "Error writing to file '%s': %s", resolved_filename.c_str(), strerror(errno));
 		close(fd);
 		return false;
 	}
